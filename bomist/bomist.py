@@ -60,6 +60,18 @@ class BomistApi:
         return self.projects_api.\
             get_projects_id_revs_revid_builds_buildid(id, revid, buildid)
 
+    def get_build_by_names(self, mpn, revcode, buildcode):
+        projects = self.get_projects()
+        mpns = [p['project']['mpn'] for p in projects]
+        id = projects[mpns.index(mpn)]['project']['id']
+        revs = self.get_project_revs(id)
+        revcodes = [r['project_rev']['revCode'] for r in revs]
+        revid = revs[revcodes.index(revcode)]['project_rev']['id']
+        builds = self.get_project_builds(id, revid)
+        buildcodes = [b['project_build']['code'] for b in builds]
+        buildid = builds[buildcodes.index(buildcode)]['project_build']['id']
+        return self.get_project_build(id, revid, buildid)
+
     @ast_decorator
     def get_inventory(self, id):
         return self.inventory_api.get_inventory_id(id)
