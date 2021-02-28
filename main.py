@@ -1,25 +1,51 @@
 import sys
-import time
 import os
 import argparse
+
 from bomist.bomist import BomistApi
-from pcb.genericjson import GenericJsonPcbData
 
 if __name__ == '__main__':
+    ibom_dir = os.path.dirname(os.path.abspath(os.path.realpath(__file__)))
+    ibom_dir = os.path.join(ibom_dir, 'InteractiveHtmlBom')
+    ibom_dir = os.path.join(ibom_dir, 'InteractiveHtmlBom')
+    sys.path.insert(0, os.path.dirname(ibom_dir))
+    os.environ['INTERACTIVE_HTML_BOM_CLI_MODE'] = 'True'
 
-    parser = argparse.ArgumentParser()
-    parser.add_argument('filename', help='JSON board file')
+    import InteractiveHtmlBom
+    from InteractiveHtmlBom.core.config import Config
+    from InteractiveHtmlBom.core import ibom
+    from InteractiveHtmlBom.core.ibom import generate_file
+    from InteractiveHtmlBom.ecad import get_parser_by_extension
+    from InteractiveHtmlBom.version import version
+    from InteractiveHtmlBom.errors import (ExitCodes,
+                                           ParsingException,
+                                           exit_error)
+
+    parser = argparse.ArgumentParser(
+        description='IndependentHtmlBom-BOMIST interface tool CLI',
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+    parser.add_argument('file', help='JSON board file')
     parser.add_argument('-b', '--bomist',
                         help="BOMIST project - syntax: MPN,REVCODE,BUILDCODE")
+    config = Config(version)
+    config.add_options(parser, config.FILE_NAME_FORMAT_HINT)
     args = parser.parse_args()
+    logger = ibom.Logger(cli=True)
+    if not os.path.isfile(args.file):
+        exit_error(logger, ExitCodes.ERROR_FILE_NOT_FOUND,
+                   "File %s does not exist." % args.file)
+    print("Loading %s" % args.file)
+    parser = get_parser_by_extension(os.path.abspath(args.file), config, logger)
+    config.set_from_args(args)
 
-    filename_in = args.filename
-    print("Processing {}".format(filename_in))
+    pcbdata, components = parser.parse()
+    if not pcbdata and not components:
+        raise ParsingException('Parsing failed.')
+
     print("Using BOMIST Project {}, Rev {}, Build {}".format(
           *tuple(args.bomist.split(','))))
 
     bomist = BomistApi()
-    # build_tree = bomist.project_build_tree()
 
     bomist = BomistApi()
     build = bomist.get_build_by_names(*tuple(args.bomist.split(',')))
@@ -41,19 +67,27 @@ if __name__ == '__main__':
                                 'mpn': mpn,
                                 'package': build_item['bom_entry']['package']
                                 })
-    foo = GenericJsonPcbData(filename_in)
 
-    for c in foo.component_data:
+    for c in components:
         index = [b['ref'] for b in bom_entries].index(c.ref)
         b = bom_entries[index]
         c.val = b['value']
         c.mpn = b['mpn']
-        c.bomist_source = b['source']
+        c.extra_fields['Source'] = b['source']
         c.footprint = b['package']
         c.dnp = b['dnp']
 
-    path, file = os.path.split(filename_in)
-    root, ext = os.path.splitext(file)
-    filename_out = os.path.join(path, "{r}_bomist{e}".format(r=root, e=ext))
-    foo.save(filename_out)
-    print("Finished processing, saved {}".format(filename_out))
+    pcbdata["bom"] = ibom.generate_bom(components, config)
+    pcbdata["ibom_version"] = config.version
+
+    ibom.log = logger
+    pcb_file_name = os.path.basename(parser.file_name)
+    pcb_file_dir = os.path.dirname(parser.file_name)
+    # build BOM
+    bom_file = generate_file(pcb_file_dir, pcb_file_name, pcbdata, config)
+
+    if config.open_browser:
+        logger.info("Opening file in browser")
+        ibom.open_file(bom_file)
+
+    print("Finished generating Interactive HTML BOM")
