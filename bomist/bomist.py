@@ -2,7 +2,6 @@ import swagger_client as swagger_client
 from swagger_client.rest import ApiException
 import ast
 import copy
-from PySide6.QtCore import QAbstractItemModel, QObject
 
 
 def ast_decorator(function):
