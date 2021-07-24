@@ -61,7 +61,7 @@ class BomistApi:
 
     def get_build_by_names(self, mpn, revcode, buildcode):
         projects = self.get_projects()
-        mpns = [p['project']['mpn'] for p in projects]
+        mpns = [self.get_part(p['project']['part'])[0]['part']['mpn'] for p in projects]
         id = projects[mpns.index(mpn)]['project']['id']
         revs = self.get_project_revs(id)
         revcodes = [r['project_rev']['revCode'] for r in revs]

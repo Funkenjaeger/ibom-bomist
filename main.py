@@ -54,8 +54,9 @@ if __name__ == '__main__':
     for build_item in build_items:
         designators = build_item['bom_entry']['designators']
         for d in designators:
-            if build_item['source'] != '':
-                source = bomist.get_storage(build_item['source'])
+            if build_item['sources']:
+                inventory = bomist.get_storage(build_item['sources'][0]['inventory'])
+                source = bomist.get_storage(inventory[0]['inventory']['storage'])
                 source = source[0]['storage']['fullName']
             else:
                 source = ''
