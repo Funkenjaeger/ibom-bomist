@@ -75,6 +75,7 @@ if __name__ == '__main__':
         c.val = b['value']
         c.mpn = b['mpn']
         c.extra_fields['Source'] = b['source']
+        c.extra_fields['MPN'] = b['mpn']
         c.footprint = b['package']
         c.dnp = b['dnp']
 
