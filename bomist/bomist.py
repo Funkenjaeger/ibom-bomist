@@ -2,6 +2,23 @@ import swagger_client as swagger_client
 from swagger_client.rest import ApiException
 import ast
 import copy
+import json
+import attr
+import typing
+
+
+@attr.s
+class BuildComponent(object):
+    # def __init__(self):
+    designators: typing.List[str] = attr.ib(factory=list)
+    dnp: bool = attr.ib(default=False)
+    source: str = attr.ib(default='')
+    value: str = attr.ib(default='')
+    package: str = attr.ib(default='')
+    mpn: str = attr.ib(default='')
+    manufacturer: str = attr.ib(default='')
+    label: str = attr.ib(default='')
+    description: str = attr.ib(default='')
 
 
 def ast_decorator(function):
@@ -137,15 +154,37 @@ class BomistApi:
             c.description = ''
         return c
 
-class BuildComponent:
+
+class BuildParser:
     def __init__(self):
-        self.designators = []
-        self.dnp = None
-        self.source = ''
-        self.value = ''
-        self.package = ''
-        self.mpn = ''
-        self.manufacturer = ''
-        self.label = ''
-        self.description = ''
-        self.source = ''
+        self.file_path = None
+        self.bom_entries = []
+
+    def parse(self, file_path):
+        self.file_path = file_path
+        with open(file_path, 'r', encoding='utf-8') as f:
+            b = json.load(f)
+            for entry in b:
+                component = BuildComponent()
+                component.designators = entry['bom_entry']['designators']
+                component.dnp = entry['bom_entry']['dnp']
+                if 'sources' in entry:
+                    (_, v), = entry['sources'].items()
+                    component.source = v['sources'][0]['storage']
+                    # TODO: make this robust vs. multiple storage locations
+                component.value = entry['bom_entry']['value']
+                component.package = entry['bom_entry']['package']
+                if 'part' in entry:
+                    component.mpn = entry['part']['mpn']
+                    component.manufacturer = entry['part']['manufacturer']
+                    component.label = entry['part']['label']
+                    component.description = entry['part']['description']
+                self.bom_entries.append(component)
+            print('foo')
+
+    def get_entry(self, designator):
+        idxs = [idx for idx, x in enumerate(self.bom_entries) if designator in x.designators]
+        if len(idxs)==1:
+            return self.bom_entries[idxs[0]]
+        else:
+            pass # TODO: barf or something

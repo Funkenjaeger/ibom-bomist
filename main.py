@@ -1,95 +1,91 @@
 import sys
 import os
 import argparse
-
-from bomist.bomist import BomistApi
+import tkinter as tk
+from tkinter import filedialog
+from pathlib import Path
+from cmd import Cmd
+from bomist.bomist import BuildParser
+from ibom.ibom import IbomParser
 
 if __name__ == '__main__':
-    ibom_dir = os.path.dirname(os.path.abspath(os.path.realpath(__file__)))
-    ibom_dir = os.path.join(ibom_dir, 'InteractiveHtmlBom')
-    ibom_dir = os.path.join(ibom_dir, 'InteractiveHtmlBom')
-    sys.path.insert(0, os.path.dirname(ibom_dir))
-    os.environ['INTERACTIVE_HTML_BOM_CLI_MODE'] = 'True'
-
-    import InteractiveHtmlBom
-    from InteractiveHtmlBom.core.config import Config
-    from InteractiveHtmlBom.core import ibom
-    from InteractiveHtmlBom.core.ibom import generate_file
-    from InteractiveHtmlBom.ecad import get_parser_by_extension
-    from InteractiveHtmlBom.version import version
-    from InteractiveHtmlBom.errors import (ExitCodes,
-                                           ParsingException,
-                                           exit_error)
-
-    parser = argparse.ArgumentParser(
-        description='IndependentHtmlBom-BOMIST interface tool CLI',
+    argparser = argparse.ArgumentParser(
+        description='InteractiveHtmlBom-BOMIST interface tool CLI',
         formatter_class=argparse.ArgumentDefaultsHelpFormatter)
-    parser.add_argument('file', help='JSON board file')
-    parser.add_argument('-b', '--bomist',
-                        help="BOMIST project - syntax: MPN,REVCODE,BUILDCODE")
-    config = Config(version)
-    config.add_options(parser, config.FILE_NAME_FORMAT_HINT)
-    args = parser.parse_args()
-    logger = ibom.Logger(cli=True)
-    if not os.path.isfile(args.file):
-        exit_error(logger, ExitCodes.ERROR_FILE_NOT_FOUND,
-                   "File %s does not exist." % args.file)
-    print("Loading %s" % args.file)
-    parser = get_parser_by_extension(os.path.abspath(args.file), config, logger)
-    config.set_from_args(args)
+    argparser.add_argument('-p', '--pcb', nargs='?', const=None, default=None, help='JSON board file')
+    argparser.add_argument('build', nargs='?', help="BOMIST build - exported JSON file")
 
-    pcbdata, components = parser.parse()
-    if not pcbdata and not components:
-        raise ParsingException('Parsing failed.')
+    args = argparser.parse_args()
 
-    print("Using BOMIST Project {}, Rev {}, Build {}".format(
-          *tuple(args.bomist.split(','))))
+    class MainPrompt(Cmd):
+        pcb_json_file = args.pcb
+        build_json_file = args.build
+        ibom_extra_args = '--dnp-field dnp --extra-fields MPN,Source'
 
-    bomist = BomistApi()
+        prompt = '\nPlease enter a command'
 
-    bomist = BomistApi()
-    build = bomist.get_build_by_names(*tuple(args.bomist.split(',')))
-    bom_entries = []
-    build_items = [b['project_build_item'] for b in build]
-    for build_item in build_items:
-        designators = build_item['bom_entry']['designators']
-        for d in designators:
-            if build_item['sources']:
-                inventory = bomist.get_storage(build_item['sources'][0]['inventory'])
-                source = bomist.get_storage(inventory[0]['inventory']['storage'])
-                source = source[0]['storage']['fullName']
+        def set_intro(self):
+            self.intro = "**************************************"
+            self.intro += '\nCurrent board: ' + self.pcb_json_file.__str__()
+            self.intro += '\nCurrent build: ' + self.build_json_file.__str__()
+            self.intro += '\nExtra IBOM args: ' + self.ibom_extra_args
+            self.intro += "\n\nAuto-discovered boards: "
+            for idx, file in enumerate(self.pcb_json_files):
+                self.intro += "\n" + (idx + 1).__str__() + ') ' + file.as_posix()
+            if len(self.pcb_json_files) == 0:
+                self.intro += "\n(No boards discovered)"
+
+        def __init__(self):
+            super().__init__()
+            home = os.path.expanduser("~")
+
+            self.pcb_json_files = list(
+                Path(os.path.join(home, "AppData\\Local\\Temp\\Neutron"
+                                        "\\ElectronFileOutput\\")).rglob(
+                    "*.[jJ][sS][oO][nN]"))
+            self.set_intro()
+
+        def do_board(self, arg):
+            """BOARD - select an auto-discovered board, or browse for one"""
+            if arg == '':
+                root = tk.Tk()
+                root.withdraw()
+                self.pcb_json_file = filedialog.askopenfilename(title='Select board file',
+                                                                filetypes=[('JSON', '.json')])
             else:
-                source = ''
-            mpn = '' if 'part' not in build_item else build_item['part']['mpn']
-            bom_entries.append({'ref': d,
-                                'source': source,
-                                'dnp': build_item['bom_entry']['dnp'],
-                                'value': build_item['bom_entry']['value'],
-                                'mpn': mpn,
-                                'package': build_item['bom_entry']['package']
-                                })
+                idx = int(arg)-1
+                self.pcb_json_file = self.pcb_json_files[idx].as_posix()
+            self.set_intro()
+            print(self.intro)
 
-    for c in components:
-        index = [b['ref'] for b in bom_entries].index(c.ref)
-        b = bom_entries[index]
-        c.val = b['value']
-        c.mpn = b['mpn']
-        c.extra_fields['Source'] = b['source']
-        c.extra_fields['MPN'] = b['mpn']
-        c.footprint = b['package']
-        c.dnp = b['dnp']
+        def do_build(self, arg):
+            root = tk.Tk()
+            root.withdraw()
+            self.build_json_file = filedialog.askopenfilename(title='Select BOMIST build file',
+                                                              filetypes=[('JSON', '.json')])
+            self.set_intro()
+            print(self.intro)
 
-    pcbdata["bom"] = ibom.generate_bom(components, config)
-    pcbdata["ibom_version"] = config.version
+        def do_menu(self, arg):
+            """MENU - print the menu again"""
+            print(self.intro)
 
-    ibom.log = logger
-    pcb_file_name = os.path.basename(parser.file_name)
-    pcb_file_dir = os.path.dirname(parser.file_name)
-    # build BOM
-    bom_file = generate_file(pcb_file_dir, pcb_file_name, pcbdata, config)
+        def do_run(self, arg):
+            """RUN - process the files"""
+            bp = BuildParser()
+            bp.parse(self.build_json_file)
 
-    if config.open_browser:
-        logger.info("Opening file in browser")
-        ibom.open_file(bom_file)
+            ip = IbomParser(argparser)
+            ip.parse(self.pcb_json_file, self.ibom_extra_args)
+            ip.reconcile(bp)
+            (dir, _) = os.path.split(self.build_json_file)
+            (_, pcb_filename) = os.path.split(self.pcb_json_file)
+            (base, _) = os.path.splitext(pcb_filename)
+            output_filename = os.path.join(dir, base + '.html')
+            ip.generate(output_filename)
+            return True
+
+    p = MainPrompt()
+    p.cmdloop()
 
     print("Finished generating Interactive HTML BOM")
