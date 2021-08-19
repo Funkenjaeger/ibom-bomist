@@ -1,5 +1,4 @@
 import swagger_client as swagger_client
-from swagger_client.rest import ApiException
 import ast
 import copy
 import json
@@ -78,7 +77,8 @@ class BomistApi:
 
     def get_build_by_names(self, mpn, revcode, buildcode):
         projects = self.get_projects()
-        mpns = [self.get_part(p['project']['part'])[0]['part']['mpn'] for p in projects]
+        mpns = [self.get_part(p['project']['part'])[0]['part']['mpn']
+                for p in projects]
         id = projects[mpns.index(mpn)]['project']['id']
         revs = self.get_project_revs(id)
         revcodes = [r['project_rev']['revCode'] for r in revs]
@@ -183,8 +183,9 @@ class BuildParser:
             print('foo')
 
     def get_entry(self, designator):
-        idxs = [idx for idx, x in enumerate(self.bom_entries) if designator in x.designators]
-        if len(idxs)==1:
+        idxs = [idx for idx, x in enumerate(self.bom_entries)
+                if designator in x.designators]
+        if len(idxs) == 1:
             return self.bom_entries[idxs[0]]
         else:
-            pass # TODO: barf or something
+            return None
