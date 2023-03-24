@@ -168,17 +168,15 @@ class BuildParser:
                 component = BuildComponent()
                 component.designators = entry['bom_entry']['designators']
                 component.dnp = entry['bom_entry']['dnp']
-                if 'sources' in entry:
-                    (_, v), = entry['sources'].items()
-                    component.source = v['sources'][0]['storage']
-                    # TODO: make this robust vs. multiple storage locations
+                component.source = entry['part']['storage']
                 component.value = entry['bom_entry']['value']
                 component.package = entry['bom_entry']['package']
                 if 'part' in entry:
                     component.mpn = entry['part']['mpn']
-                    component.manufacturer = entry['part']['manufacturer']
+                    component.manufacturer = entry['part'].get('manufacturer',
+                                                               '')
                     component.label = entry['part']['label']
-                    component.description = entry['part']['description']
+                    component.description = entry['part'].get('description', '')
                 self.bom_entries.append(component)
             print('foo')
 
