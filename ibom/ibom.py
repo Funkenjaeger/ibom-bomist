@@ -1,6 +1,7 @@
 import sys
 import os
 
+import wx
 
 class IbomParser(object):
     ibom_dir = os.path.dirname(os.path.abspath(os.path.realpath(__file__)))
@@ -10,11 +11,12 @@ class IbomParser(object):
     sys.path.insert(0, os.path.dirname(ibom_dir))
     os.environ['INTERACTIVE_HTML_BOM_CLI_MODE'] = 'True'
 
-    def __init__(self, argparser):
+    def __init__(self, argparser, local_dir):
+        wx.DisableAsserts()
         from InteractiveHtmlBom.core import ibom
         from InteractiveHtmlBom.core.config import Config
         from InteractiveHtmlBom.version import version
-        self._config = Config(version)
+        self._config = Config(version, local_dir)
         self._config.add_options(argparser, self._config.FILE_NAME_FORMAT_HINT)
         self._argparser = argparser
         self.pcbdata = None
